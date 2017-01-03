@@ -4,22 +4,61 @@ from bs4 import BeautifulSoup as bs
 from conn_sql import conn_sql
 import datetime
 base_url = 'http://sh.lianjia.com/zufang'
+district = ''
+targe = ''
 
 
-def getPageNum():
-    global base_url
-    page = requests.get(base_url)
+def getOneDistrict(url):
+    global targe
+    try:
+        page = requests.get(url)
+        soup = bs(page.content, 'lxml')
+        div = soup.find('div', {'class': re.compile('sub-option-list')})
+        aList = div.findAll('a')
+        del aList[0]
+        for a in aList:
+            targe = a.get_text().strip()
+            new_url = 'http://sh.lianjia.com' + a.get('href')
+            num = getPageNum(new_url)
+            print(targe)
+            for i in range(1, int(num) + 1):
+                print("%s/%s" % (i, num))
+                getOneList(new_url+'d'+str(i))
+            break
+    except Exception as e:
+        print(e)
+
+
+def getDistrict():
+    global base_url,district
+    try:
+        page = requests.get(base_url)
+        soup = bs(page.content, 'lxml')
+        div = soup.find('div', {'class': re.compile('option-list')})
+        aList = div.findAll('a')
+        del aList[0]
+        for a in aList:
+            district = a.get_text().strip()
+            new_url = 'http://sh.lianjia.com' + a.get('href')
+            print(district)
+            getOneDistrict(new_url)
+            break
+    except Exception as e:
+        print(e)
+
+
+def getPageNum(url):
+    page = requests.get(url)
     soup = bs(page.content, 'lxml')
     div = soup.find('div', {'class': re.compile('house-lst-page-box')})
     aList = div.findAll('a')
     return aList[-2].get_text().strip()
 
 
-def getOneList(num):
-    global base_url
-    new_url = base_url + '/d' + str(num)
-    page = requests.get(new_url)
-    soup = bs(page.content, 'html5lib')
+def getOneList(url):
+    global district,targe
+    page = requests.get(url)
+    soup = bs(page.content, 'lxml')
     div = soup.find('div', {'class': 'list-wrap'})
     liList = div.findAll('li')
     # print(len(liList))
@@ -36,7 +75,7 @@ def getOneList(num):
         data['toilet'] = re.search('(\d)厅',span_col_1[1].get_text()).group(1)
         data['area'] = re.search('(\d+)平',span_col_1[2].get_text()).group(1)
         div_other = _div.find('div', {'class': 'other'})
-        data['district'] = div_other.findAll('a')[0].get_text().strip()
+        data['district'] = district
         data['height'] = re.search('(\d+)层', div_other.get_text()).group(1)
         try:
             data['direction'] = re.search('朝(.*)',div_other.get_text()).group(1)
@@ -55,9 +94,10 @@ def getOneList(num):
         data['status'] = 0
         data['lroom'] = 0
         data['sfzz'] = 0
+        data['targe'] = targe
         sql = "insert into lianjia VALUES (%(url)s,%(title)s,%(name)s,%(updatetime)s,%(createtime)s,%(price)s," \
               "%(status)s, %(longitude)s, %(latitude)s, %(area)s, %(room)s, %(lroom)s, %(toilet)s," \
-              "%(sfzz)s, %(height)s, %(direction)s, %(distance)s, %(district)s)"
+              "%(sfzz)s, %(height)s, %(direction)s, %(distance)s, %(district)s, %(targe)s)"
         conn_sql(sql, data)
 
 
@@ -71,10 +111,7 @@ def getAddress(url):
 
 
 def main():
-    num = getPageNum()
-    for i in range(1,int(num)+1):
-        print("%s/%s" % (i, num))
-        getOneList(i)
+    getDistrict()
 
 
 if __name__ == '__main__':
